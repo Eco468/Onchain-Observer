@@ -1,6 +1,6 @@
 import { logger } from "./logger";
 
-const BASE = "https://api.etherscan.io/api";
+const BASE = "https://api.etherscan.io/v2/api";
 
 export interface EthTx {
   hash: string;
@@ -38,6 +38,7 @@ function apiKey(): string {
 async function get<T>(params: Record<string, string>): Promise<T | null> {
   const key = apiKey();
   const url = new URL(BASE);
+  url.searchParams.set("chainid", "1");
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
   if (key) url.searchParams.set("apikey", key);
 

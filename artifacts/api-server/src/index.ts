@@ -3,6 +3,7 @@ import app from "./app";
 import { logger } from "./lib/logger";
 import { createWss } from "./lib/websocket";
 import { startEventSimulator } from "./lib/eventSimulator";
+import { startBlockchainWatcher } from "./lib/blockchainWatcher";
 
 const rawPort = process.env["PORT"];
 
@@ -24,8 +25,13 @@ createWss(server);
 
 server.listen(port, () => {
   logger.info({ port }, "Server listening");
+
   startEventSimulator().catch((err) => {
     logger.error({ err }, "Failed to start event simulator");
+  });
+
+  startBlockchainWatcher().catch((err) => {
+    logger.error({ err }, "Failed to start blockchain watcher");
   });
 });
 
