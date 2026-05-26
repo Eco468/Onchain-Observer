@@ -3,13 +3,26 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Argus — AI Onchain Intelligence & Whale Tracking Agent API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: wallets
+    description: Whale wallet management
+  - name: watchlists
+    description: Watchlist management
+  - name: events
+    description: Onchain event detection
+  - name: alerts
+    description: Alert configuration
+  - name: intelligence
+    description: AI-powered intelligence feed
+  - name: dashboard
+    description: Dashboard overview
+
 paths:
   /healthz:
     get:
@@ -24,6 +37,473 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  # ── Wallets ───────────────────────────────────────────────────────────────
+  /wallets:
+    get:
+      operationId: listWallets
+      tags: [wallets]
+      summary: List all tracked wallets
+      parameters:
+        - name: watchlistId
+          in: query
+          schema:
+            type: integer
+        - name: category
+          in: query
+          schema:
+            type: string
+        - name: chain
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of wallets
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Wallet"
+    post:
+      operationId: createWallet
+      tags: [wallets]
+      summary: Add a wallet to track
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WalletInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Wallet"
+
+  /wallets/{id}:
+    get:
+      operationId: getWallet
+      tags: [wallets]
+      summary: Get wallet by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Wallet
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Wallet"
+        "404":
+          description: Not found
+    patch:
+      operationId: updateWallet
+      tags: [wallets]
+      summary: Update wallet metadata
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WalletUpdate"
+      responses:
+        "200":
+          description: Updated wallet
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Wallet"
+    delete:
+      operationId: deleteWallet
+      tags: [wallets]
+      summary: Remove a tracked wallet
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  # ── Watchlists ────────────────────────────────────────────────────────────
+  /watchlists:
+    get:
+      operationId: listWatchlists
+      tags: [watchlists]
+      summary: List all watchlists
+      responses:
+        "200":
+          description: List of watchlists
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Watchlist"
+    post:
+      operationId: createWatchlist
+      tags: [watchlists]
+      summary: Create a new watchlist
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WatchlistInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Watchlist"
+
+  /watchlists/{id}:
+    get:
+      operationId: getWatchlist
+      tags: [watchlists]
+      summary: Get watchlist with its wallets
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Watchlist
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WatchlistDetail"
+        "404":
+          description: Not found
+    patch:
+      operationId: updateWatchlist
+      tags: [watchlists]
+      summary: Update watchlist
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WatchlistUpdate"
+      responses:
+        "200":
+          description: Updated watchlist
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Watchlist"
+    delete:
+      operationId: deleteWatchlist
+      tags: [watchlists]
+      summary: Delete a watchlist
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /watchlists/{id}/wallets:
+    post:
+      operationId: addWalletToWatchlist
+      tags: [watchlists]
+      summary: Add wallet to watchlist
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WatchlistWalletInput"
+      responses:
+        "201":
+          description: Added
+
+  /watchlists/{id}/wallets/{walletId}:
+    delete:
+      operationId: removeWalletFromWatchlist
+      tags: [watchlists]
+      summary: Remove wallet from watchlist
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: walletId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Removed
+
+  # ── Events ────────────────────────────────────────────────────────────────
+  /events:
+    get:
+      operationId: listEvents
+      tags: [events]
+      summary: List detected onchain events
+      parameters:
+        - name: walletId
+          in: query
+          schema:
+            type: integer
+        - name: eventType
+          in: query
+          schema:
+            type: string
+        - name: chain
+          in: query
+          schema:
+            type: string
+        - name: significance
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+      responses:
+        "200":
+          description: List of events
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/OnchainEvent"
+
+  /events/stats:
+    get:
+      operationId: getEventStats
+      tags: [events]
+      summary: Event statistics and breakdowns
+      responses:
+        "200":
+          description: Event stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventStats"
+
+  /events/{id}:
+    get:
+      operationId: getEvent
+      tags: [events]
+      summary: Get single event with full AI analysis
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Event with analysis
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OnchainEventDetail"
+        "404":
+          description: Not found
+
+  # ── Alerts ────────────────────────────────────────────────────────────────
+  /alerts:
+    get:
+      operationId: listAlerts
+      tags: [alerts]
+      summary: List alert configurations
+      responses:
+        "200":
+          description: List of alerts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Alert"
+    post:
+      operationId: createAlert
+      tags: [alerts]
+      summary: Create alert configuration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AlertInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Alert"
+
+  /alerts/{id}:
+    patch:
+      operationId: updateAlert
+      tags: [alerts]
+      summary: Update alert configuration
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AlertUpdate"
+      responses:
+        "200":
+          description: Updated alert
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Alert"
+    delete:
+      operationId: deleteAlert
+      tags: [alerts]
+      summary: Delete alert configuration
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  # ── Intelligence ──────────────────────────────────────────────────────────
+  /intelligence/feed:
+    get:
+      operationId: getIntelligenceFeed
+      tags: [intelligence]
+      summary: Get AI-generated intelligence summaries
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: Intelligence feed
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/IntelligenceItem"
+
+  /intelligence/analyze:
+    post:
+      operationId: analyzeWallet
+      tags: [intelligence]
+      summary: Trigger AI analysis for a wallet or event
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AnalysisRequest"
+      responses:
+        "200":
+          description: Analysis result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnalysisResult"
+
+  /intelligence/summary:
+    get:
+      operationId: getMarketSummary
+      tags: [intelligence]
+      summary: Get AI market activity summary
+      responses:
+        "200":
+          description: Market summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MarketSummary"
+
+  # ── Dashboard ─────────────────────────────────────────────────────────────
+  /dashboard/stats:
+    get:
+      operationId: getDashboardStats
+      tags: [dashboard]
+      summary: Dashboard overview statistics
+      responses:
+        "200":
+          description: Dashboard stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardStats"
+
+  /dashboard/activity:
+    get:
+      operationId: getDashboardActivity
+      tags: [dashboard]
+      summary: Recent activity feed for dashboard
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+      responses:
+        "200":
+          description: Recent activity
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ActivityItem"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +514,254 @@ components:
       required:
         - status
 
+    # ── Wallet ──────────────────────────────────────────────────────────────
+    Wallet:
+      type: object
+      required: [id, address, chain, category, label, isActive, createdAt]
+      properties:
+        id:         { type: integer }
+        address:    { type: string }
+        chain:      { type: string }
+        category:   { type: string }
+        label:      { type: string }
+        notes:      { type: ["string", "null"] }
+        isActive:   { type: boolean }
+        lastActivity: { type: ["string", "null"] }
+        totalVolume30d: { type: ["number", "null"] }
+        eventCount: { type: integer }
+        createdAt:  { type: string }
+
+    WalletInput:
+      type: object
+      required: [address, chain, category, label]
+      properties:
+        address:  { type: string, minLength: 10 }
+        chain:    { type: string }
+        category: { type: string }
+        label:    { type: string }
+        notes:    { type: string }
+
+    WalletUpdate:
+      type: object
+      properties:
+        label:    { type: string }
+        notes:    { type: string }
+        category: { type: string }
+        isActive: { type: boolean }
+
+    # ── Watchlist ───────────────────────────────────────────────────────────
+    Watchlist:
+      type: object
+      required: [id, name, walletCount, createdAt]
+      properties:
+        id:          { type: integer }
+        name:        { type: string }
+        description: { type: ["string", "null"] }
+        walletCount: { type: integer }
+        createdAt:   { type: string }
+
+    WatchlistDetail:
+      type: object
+      required: [id, name, wallets, createdAt]
+      properties:
+        id:          { type: integer }
+        name:        { type: string }
+        description: { type: ["string", "null"] }
+        wallets:
+          type: array
+          items:
+            $ref: "#/components/schemas/Wallet"
+        createdAt:   { type: string }
+
+    WatchlistInput:
+      type: object
+      required: [name]
+      properties:
+        name:        { type: string, minLength: 1 }
+        description: { type: string }
+
+    WatchlistUpdate:
+      type: object
+      properties:
+        name:        { type: string }
+        description: { type: string }
+
+    WatchlistWalletInput:
+      type: object
+      required: [walletId]
+      properties:
+        walletId: { type: integer }
+
+    # ── Events ──────────────────────────────────────────────────────────────
+    OnchainEvent:
+      type: object
+      required: [id, walletId, walletAddress, walletLabel, eventType, chain, significance, detectedAt]
+      properties:
+        id:             { type: integer }
+        walletId:       { type: integer }
+        walletAddress:  { type: string }
+        walletLabel:    { type: string }
+        eventType:      { type: string }
+        chain:          { type: string }
+        tokenSymbol:    { type: ["string", "null"] }
+        amountUsd:      { type: ["number", "null"] }
+        txHash:         { type: ["string", "null"] }
+        significance:   { type: string }
+        summary:        { type: ["string", "null"] }
+        detectedAt:     { type: string }
+
+    OnchainEventDetail:
+      type: object
+      required: [id, walletId, walletAddress, walletLabel, eventType, chain, significance, detectedAt]
+      properties:
+        id:             { type: integer }
+        walletId:       { type: integer }
+        walletAddress:  { type: string }
+        walletLabel:    { type: string }
+        eventType:      { type: string }
+        chain:          { type: string }
+        tokenSymbol:    { type: ["string", "null"] }
+        amountUsd:      { type: ["number", "null"] }
+        txHash:         { type: ["string", "null"] }
+        significance:   { type: string }
+        summary:        { type: ["string", "null"] }
+        aiAnalysis:     { type: ["string", "null"] }
+        inferredIntent: { type: ["string", "null"] }
+        historicalContext: { type: ["string", "null"] }
+        detectedAt:     { type: string }
+
+    EventStats:
+      type: object
+      required: [totalEvents, byType, byChain, bySignificance, last24h, last7d]
+      properties:
+        totalEvents:    { type: integer }
+        last24h:        { type: integer }
+        last7d:         { type: integer }
+        byType:
+          type: array
+          items:
+            $ref: "#/components/schemas/CountBreakdown"
+        byChain:
+          type: array
+          items:
+            $ref: "#/components/schemas/CountBreakdown"
+        bySignificance:
+          type: array
+          items:
+            $ref: "#/components/schemas/CountBreakdown"
+
+    CountBreakdown:
+      type: object
+      required: [label, count]
+      properties:
+        label: { type: string }
+        count: { type: integer }
+
+    # ── Alerts ──────────────────────────────────────────────────────────────
+    Alert:
+      type: object
+      required: [id, channel, isActive, createdAt]
+      properties:
+        id:         { type: integer }
+        name:       { type: string }
+        channel:    { type: string }
+        webhookUrl: { type: ["string", "null"] }
+        chatId:     { type: ["string", "null"] }
+        minSignificance: { type: string }
+        isActive:   { type: boolean }
+        createdAt:  { type: string }
+
+    AlertInput:
+      type: object
+      required: [channel, name]
+      properties:
+        name:       { type: string }
+        channel:    { type: string }
+        webhookUrl: { type: string }
+        chatId:     { type: string }
+        minSignificance: { type: string }
+
+    AlertUpdate:
+      type: object
+      properties:
+        name:       { type: string }
+        webhookUrl: { type: string }
+        chatId:     { type: string }
+        minSignificance: { type: string }
+        isActive:   { type: boolean }
+
+    # ── Intelligence ─────────────────────────────────────────────────────────
+    IntelligenceItem:
+      type: object
+      required: [id, headline, body, category, significance, createdAt]
+      properties:
+        id:          { type: integer }
+        headline:    { type: string }
+        body:        { type: string }
+        category:    { type: string }
+        significance: { type: string }
+        relatedWallets:
+          type: array
+          items:
+            type: string
+        relatedEventId: { type: ["integer", "null"] }
+        createdAt:   { type: string }
+
+    AnalysisRequest:
+      type: object
+      properties:
+        walletId:  { type: integer }
+        eventId:   { type: integer }
+        prompt:    { type: string }
+
+    AnalysisResult:
+      type: object
+      required: [analysis, inferredIntent, significance]
+      properties:
+        analysis:        { type: string }
+        inferredIntent:  { type: string }
+        significance:    { type: string }
+        historicalContext: { type: string }
+        confidence:      { type: string }
+
+    MarketSummary:
+      type: object
+      required: [headline, body, trendingNarratives, topActiveChains, generatedAt]
+      properties:
+        headline:          { type: string }
+        body:              { type: string }
+        trendingNarratives:
+          type: array
+          items:
+            type: string
+        topActiveChains:
+          type: array
+          items:
+            type: string
+        generatedAt:       { type: string }
+
+    # ── Dashboard ────────────────────────────────────────────────────────────
+    DashboardStats:
+      type: object
+      required: [trackedWallets, activeWatchlists, eventsToday, criticalEvents, totalVolumeTracked, activeAlerts]
+      properties:
+        trackedWallets:     { type: integer }
+        activeWatchlists:   { type: integer }
+        eventsToday:        { type: integer }
+        criticalEvents:     { type: integer }
+        totalVolumeTracked: { type: number }
+        activeAlerts:       { type: integer }
+
+    ActivityItem:
+      type: object
+      required: [id, type, title, description, significance, timestamp]
+      properties:
+        id:          { type: integer }
+        type:        { type: string }
+        title:       { type: string }
+        description: { type: string }
+        significance: { type: string }
+        chain:       { type: ["string", "null"] }
+        walletLabel: { type: ["string", "null"] }
+        amountUsd:   { type: ["number", "null"] }
+        timestamp:   { type: string }
