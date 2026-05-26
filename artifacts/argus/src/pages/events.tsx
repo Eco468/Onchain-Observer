@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useListEvents, useGetEventStats } from "@workspace/api-client-react";
 import { formatUsd, formatAddress } from "@/lib/format";
 import { formatDistanceToNow } from "date-fns";
@@ -7,11 +7,15 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Filter } from "lucide-react";
+import { Filter, Zap } from "lucide-react";
+import { useLiveFeedContext } from "@/contexts/live-feed-context";
 
 export default function Events() {
   const [chain, setChain] = useState<string>("all");
   const [significance, setSignificance] = useState<string>("all");
+  const { recentEvents, status, eventCount } = useLiveFeedContext();
+  const [flashingIds, setFlashingIds] = useState<Set<number>>(new Set());
+  const prevCountRef = useRef(0);
 
   const { data: events, isLoading } = useListEvents({ 
     limit: 100,
@@ -20,12 +24,43 @@ export default function Events() {
   });
   const { data: stats } = useGetEventStats();
 
+  // Flash newly arriving events
+  useEffect(() => {
+    if (recentEvents.length > prevCountRef.current) {
+      const newest = recentEvents[0];
+      if (newest) {
+        setFlashingIds((prev) => new Set([...prev, newest.id]));
+        setTimeout(() => {
+          setFlashingIds((prev) => {
+            const next = new Set(prev);
+            next.delete(newest.id);
+            return next;
+          });
+        }, 4000);
+      }
+    }
+    prevCountRef.current = recentEvents.length;
+  }, [recentEvents]);
+
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight uppercase font-mono">Events Feed</h1>
-          <p className="text-muted-foreground">Chronological list of detected onchain events</p>
+          <div className="flex items-center gap-3">
+            <h1 className="text-3xl font-bold tracking-tight uppercase font-mono">Events Feed</h1>
+            {status === "connected" && (
+              <span className="flex items-center gap-1.5 text-xs font-mono text-primary bg-primary/10 border border-primary/20 px-2 py-0.5 rounded">
+                <Zap className="w-3 h-3 animate-pulse" />
+                LIVE
+              </span>
+            )}
+          </div>
+          <p className="text-muted-foreground">
+            Chronological list of detected onchain events
+            {eventCount > 0 && (
+              <span className="ml-2 text-primary font-mono">· {eventCount} streamed this session</span>
+            )}
+          </p>
         </div>
         
         <div className="flex items-center gap-3">
@@ -69,10 +104,14 @@ export default function Events() {
           <div className="text-xs text-muted-foreground font-mono mb-1 uppercase tracking-wider">7d Volume</div>
           <div className="font-mono text-xl font-bold">{stats?.last7d ?? 0} Events</div>
         </div>
-        <div className="bg-card border border-border p-4 rounded-lg flex flex-col justify-center col-span-2">
+        <div className="bg-card border border-border p-4 rounded-lg flex flex-col justify-center">
+          <div className="text-xs text-muted-foreground font-mono mb-1 uppercase tracking-wider">This Session</div>
+          <div className="font-mono text-xl font-bold text-primary">{eventCount} Streamed</div>
+        </div>
+        <div className="bg-card border border-border p-4 rounded-lg flex flex-col justify-center">
           <div className="text-xs text-muted-foreground font-mono mb-1 uppercase tracking-wider">Top Event Types</div>
           <div className="flex gap-4 font-mono text-sm">
-            {stats?.byType.slice(0, 3).map(t => (
+            {stats?.byType.slice(0, 2).map(t => (
               <div key={t.label} className="flex gap-2"><span className="text-primary">{t.label}:</span> <span>{t.count}</span></div>
             ))}
           </div>
@@ -99,29 +138,43 @@ export default function Events() {
                     <td colSpan={6} className="px-6 py-4"><Skeleton className="h-8 w-full" /></td>
                   </tr>
                 ))
-              ) : events?.map((event, index) => (
-                <tr key={event.id} className="hover:bg-primary/5 transition-colors group" data-testid={`row-event-${index}`}>
-                  <td className="px-6 py-4 font-mono whitespace-nowrap text-muted-foreground text-xs">
-                    {formatDistanceToNow(new Date(event.detectedAt), { addSuffix: true })}
-                  </td>
-                  <td className="px-6 py-4 font-mono text-xs uppercase text-foreground">{event.eventType.replace(/_/g, ' ')}</td>
-                  <td className="px-6 py-4">
-                    <Link href={`/wallets/${event.walletId}`} className="flex flex-col group-hover:text-primary transition-colors">
-                      <span className="font-semibold text-sm">{event.walletLabel}</span>
-                      <span className="text-xs text-muted-foreground font-mono">{formatAddress(event.walletAddress)}</span>
-                    </Link>
-                  </td>
-                  <td className="px-6 py-4 font-mono text-xs uppercase">{event.chain}</td>
-                  <td className="px-6 py-4 text-right font-mono font-bold text-primary">
-                    {formatUsd(event.amountUsd)}
-                  </td>
-                  <td className="px-6 py-4 text-center">
-                    <span className={`px-3 py-1 rounded text-[10px] font-mono font-bold tracking-widest border ${event.significance === 'critical' ? 'bg-destructive/10 text-destructive border-destructive/20' : event.significance === 'high' ? 'bg-orange-500/10 text-orange-500 border-orange-500/20' : 'bg-primary/10 text-primary border-primary/20'}`}>
-                      {event.significance.toUpperCase()}
-                    </span>
-                  </td>
-                </tr>
-              ))}
+              ) : events?.map((event, index) => {
+                const isFlashing = flashingIds.has(event.id);
+                return (
+                  <tr
+                    key={event.id}
+                    className={`transition-all group ${
+                      isFlashing
+                        ? "bg-primary/10 border-l-2 border-primary"
+                        : "hover:bg-primary/5"
+                    }`}
+                    data-testid={`row-event-${index}`}
+                  >
+                    <td className="px-6 py-4 font-mono whitespace-nowrap text-muted-foreground text-xs">
+                      <div>{formatDistanceToNow(new Date(event.detectedAt), { addSuffix: true })}</div>
+                      {isFlashing && (
+                        <div className="text-[9px] text-primary mt-0.5 animate-in fade-in duration-300">● JUST NOW</div>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 font-mono text-xs uppercase text-foreground">{event.eventType.replace(/_/g, ' ')}</td>
+                    <td className="px-6 py-4">
+                      <Link href={`/wallets/${event.walletId}`} className="flex flex-col group-hover:text-primary transition-colors">
+                        <span className="font-semibold text-sm">{event.walletLabel}</span>
+                        <span className="text-xs text-muted-foreground font-mono">{formatAddress(event.walletAddress)}</span>
+                      </Link>
+                    </td>
+                    <td className="px-6 py-4 font-mono text-xs uppercase">{event.chain}</td>
+                    <td className="px-6 py-4 text-right font-mono font-bold text-primary">
+                      {formatUsd(event.amountUsd)}
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      <span className={`px-3 py-1 rounded text-[10px] font-mono font-bold tracking-widest border ${event.significance === 'critical' ? 'bg-destructive/10 text-destructive border-destructive/20' : event.significance === 'high' ? 'bg-orange-500/10 text-orange-500 border-orange-500/20' : 'bg-primary/10 text-primary border-primary/20'}`}>
+                        {event.significance.toUpperCase()}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

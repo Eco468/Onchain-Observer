@@ -4,6 +4,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
 import { Layout } from "@/components/layout";
+import { LiveFeedProvider } from "@/contexts/live-feed-context";
 
 // Pages
 import Dashboard from "@/pages/dashboard";
@@ -38,7 +39,9 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-          <Router />
+          <LiveFeedProvider>
+            <Router />
+          </LiveFeedProvider>
         </WouterRouter>
         <Toaster />
       </TooltipProvider>

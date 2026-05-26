@@ -1,7 +1,8 @@
 import React from "react";
 import { Link, useLocation } from "wouter";
-import { Activity, Eye, Wallet, List, BrainCircuit, Bell, Globe } from "lucide-react";
+import { Activity, Eye, Wallet, List, BrainCircuit, Bell, Globe, Radio } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useLiveFeedContext } from "@/contexts/live-feed-context";
 
 const NAV_ITEMS = [
   { href: "/", label: "Dashboard", icon: Activity },
@@ -14,6 +15,7 @@ const NAV_ITEMS = [
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
+  const { status, eventCount } = useLiveFeedContext();
 
   return (
     <div className="flex h-screen w-full bg-background text-foreground overflow-hidden">
@@ -44,7 +46,30 @@ export function Layout({ children }: { children: React.ReactNode }) {
             );
           })}
         </nav>
-        <div className="p-4 border-t border-border">
+        <div className="p-4 border-t border-border space-y-2">
+          <div className="flex items-center justify-between text-xs font-mono">
+            <div className="flex items-center gap-2">
+              {status === "connected" ? (
+                <>
+                  <Radio className="w-3 h-3 text-primary animate-pulse" />
+                  <span className="text-primary">LIVE FEED</span>
+                </>
+              ) : status === "connecting" ? (
+                <>
+                  <div className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse" />
+                  <span className="text-yellow-500">CONNECTING</span>
+                </>
+              ) : (
+                <>
+                  <div className="w-2 h-2 rounded-full bg-destructive" />
+                  <span className="text-destructive">OFFLINE</span>
+                </>
+              )}
+            </div>
+            {eventCount > 0 && (
+              <span className="text-muted-foreground">{eventCount} streamed</span>
+            )}
+          </div>
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
             System Operational
