@@ -1,7 +1,8 @@
-import { db, walletsTable, eventsTable } from "@workspace/db";
+import { db, walletsTable, eventsTable, alertsTable } from "@workspace/db";
 import { broadcast } from "./websocket";
 import { logger } from "./logger";
-import { desc } from "drizzle-orm";
+import { eq } from "drizzle-orm";
+import { dispatchTelegramAlerts, formatEventAlert } from "./telegram";
 
 const EVENT_TYPES = [
   "accumulation",
@@ -16,7 +17,6 @@ const EVENT_TYPES = [
 ];
 
 const CHAINS = ["ethereum", "base", "arbitrum", "optimism", "polygon"];
-
 const TOKENS = ["ETH", "USDC", "USDT", "BTC", "ARB", "OP", "MATIC", "DAI", "WBTC"];
 
 const SIGNIFICANCE_WEIGHTS = [
@@ -74,6 +74,12 @@ const SUMMARIES: Record<string, string[]> = {
   ],
 };
 
+const SIGNIFICANCE_ORDER = ["low", "medium", "high", "critical"];
+
+function meetsThreshold(eventSig: string, minSig: string): boolean {
+  return SIGNIFICANCE_ORDER.indexOf(eventSig) >= SIGNIFICANCE_ORDER.indexOf(minSig);
+}
+
 function weighted<T>(items: { value: T; weight: number }[]): T {
   const total = items.reduce((s, i) => s + i.weight, 0);
   let r = Math.random() * total;
@@ -103,7 +109,6 @@ export async function startEventSimulator(): Promise<void> {
 }
 
 function scheduleNext(): void {
-  // Random interval between 15–40 seconds
   const delay = (15 + Math.random() * 25) * 1000;
   simulatorTimer = setTimeout(async () => {
     try {
@@ -159,23 +164,46 @@ async function generateAndBroadcastEvent(): Promise<void> {
     "Simulated onchain event generated"
   );
 
-  broadcast({
-    type: "event",
-    payload: {
-      id: inserted.id,
-      walletId: wallet.id,
-      walletAddress: wallet.address,
-      walletLabel: wallet.label,
-      eventType,
-      chain,
-      tokenSymbol: token,
-      amountUsd,
-      txHash,
-      significance,
-      summary,
-      detectedAt: inserted.detectedAt.toISOString(),
-    },
-  });
+  const payload = {
+    id: inserted.id,
+    walletId: wallet.id,
+    walletAddress: wallet.address,
+    walletLabel: wallet.label,
+    eventType,
+    chain,
+    tokenSymbol: token,
+    amountUsd,
+    txHash,
+    significance,
+    summary,
+    detectedAt: inserted.detectedAt.toISOString(),
+  };
+
+  broadcast({ type: "event", payload });
+
+  // Dispatch Telegram alerts for active alerts that meet significance threshold
+  try {
+    const activeAlerts = await db
+      .select()
+      .from(alertsTable)
+      .where(eq(alertsTable.isActive, true));
+
+    const telegramChatIds = activeAlerts
+      .filter(
+        (a) =>
+          a.channel === "telegram" &&
+          a.chatId &&
+          meetsThreshold(significance, a.minSignificance)
+      )
+      .map((a) => a.chatId!);
+
+    if (telegramChatIds.length > 0) {
+      const message = formatEventAlert(payload);
+      await dispatchTelegramAlerts(telegramChatIds, message);
+    }
+  } catch (err) {
+    logger.error({ err }, "Failed to dispatch alerts");
+  }
 }
 
 export function stopEventSimulator(): void {

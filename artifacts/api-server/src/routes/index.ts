@@ -6,6 +6,7 @@ import eventsRouter from "./events";
 import alertsRouter from "./alerts";
 import intelligenceRouter from "./intelligence";
 import dashboardRouter from "./dashboard";
+import telegramRouter from "./telegram";
 
 const router: IRouter = Router();
 
@@ -16,5 +17,6 @@ router.use(eventsRouter);
 router.use(alertsRouter);
 router.use(intelligenceRouter);
 router.use(dashboardRouter);
+router.use(telegramRouter);
 
 export default router;
