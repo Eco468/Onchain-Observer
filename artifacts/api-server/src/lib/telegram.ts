@@ -84,6 +84,51 @@ export function formatEventAlert(payload: {
     .join("\n");
 }
 
+export function formatCorrelationAlert(payload: {
+  headline: string;
+  body: string;
+  significance: string;
+  eventType: string;
+  chain: string;
+  walletCount: number;
+  walletLabels: string[];
+  totalUsd: number;
+  detectedAt: string;
+}): string {
+  const sigEmoji =
+    payload.significance === "critical"
+      ? "🚨"
+      : payload.significance === "high"
+      ? "⚠️"
+      : "🔔";
+
+  const total =
+    payload.totalUsd >= 1_000_000
+      ? `$${(payload.totalUsd / 1_000_000).toFixed(2)}M`
+      : payload.totalUsd >= 1_000
+      ? `$${(payload.totalUsd / 1_000).toFixed(0)}K`
+      : `$${payload.totalUsd.toFixed(0)}`;
+
+  const walletList = payload.walletLabels
+    .map((l) => `  • ${l}`)
+    .join("\n");
+
+  return [
+    `${sigEmoji} <b>ARGUS CORRELATION</b> — ${payload.significance.toUpperCase()}`,
+    ``,
+    `<b>${payload.headline}</b>`,
+    ``,
+    `📊 <b>Event type:</b> ${payload.eventType.replace(/_/g, " ").toUpperCase()}`,
+    `⛓ <b>Chain:</b> ${payload.chain.toUpperCase()}`,
+    `👛 <b>Wallets (${payload.walletCount}):</b>`,
+    walletList,
+    `💵 <b>Combined volume:</b> ${total}`,
+    `🕐 <b>Detected:</b> ${new Date(payload.detectedAt).toUTCString()}`,
+    ``,
+    `<i>Synchronized moves across ${payload.walletCount}+ wallets in a 10-min window signal coordinated positioning.</i>`,
+  ].join("\n");
+}
+
 export async function dispatchTelegramAlerts(
   chatIds: string[],
   message: string

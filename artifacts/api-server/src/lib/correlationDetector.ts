@@ -1,7 +1,13 @@
-import { db, intelligenceItemsTable, eventsTable, walletsTable } from "@workspace/db";
+import { db, intelligenceItemsTable, eventsTable, walletsTable, alertsTable } from "@workspace/db";
 import { desc, gte, and, eq } from "drizzle-orm";
 import { logger } from "./logger";
 import { broadcast } from "./websocket";
+import { dispatchTelegramAlerts, formatCorrelationAlert } from "./telegram";
+
+const SIGNIFICANCE_ORDER = ["low", "medium", "high", "critical"];
+function meetsThreshold(eventSig: string, minSig: string): boolean {
+  return SIGNIFICANCE_ORDER.indexOf(eventSig) >= SIGNIFICANCE_ORDER.indexOf(minSig);
+}
 
 const WINDOW_MINUTES = 10;
 const LOOKBACK_MINUTES = 90;
@@ -129,21 +135,41 @@ export async function runCorrelationDetection(): Promise<void> {
       "Correlation signal detected and saved"
     );
 
-    broadcast({
-      type: "correlation_signal",
-      payload: {
-        id: inserted.id,
-        headline,
-        body,
-        significance: sig,
-        eventType: cluster.eventType,
-        chain: cluster.chain,
-        walletCount: cluster.walletIds.size,
-        walletLabels,
-        totalUsd,
-        detectedAt: inserted.createdAt.toISOString(),
-      },
-    });
+    const signalPayload = {
+      id: inserted.id,
+      headline,
+      body,
+      significance: sig,
+      eventType: cluster.eventType,
+      chain: cluster.chain,
+      walletCount: cluster.walletIds.size,
+      walletLabels,
+      totalUsd,
+      detectedAt: inserted.createdAt.toISOString(),
+    };
+
+    broadcast({ type: "correlation_signal", payload: signalPayload });
+
+    // Dispatch Telegram alerts to all active subscribers that meet the threshold
+    const activeAlerts = await db
+      .select()
+      .from(alertsTable)
+      .where(and(eq(alertsTable.isActive, true), eq(alertsTable.channel, "telegram")));
+
+    const eligibleChatIds = activeAlerts
+      .filter(
+        (a) => a.chatId && meetsThreshold(sig, a.minSignificance)
+      )
+      .map((a) => a.chatId!);
+
+    if (eligibleChatIds.length > 0) {
+      const message = formatCorrelationAlert(signalPayload);
+      await dispatchTelegramAlerts(eligibleChatIds, message);
+      logger.info(
+        { chatIds: eligibleChatIds.length, headline },
+        "Correlation Telegram alerts dispatched"
+      );
+    }
   }
 }
 
