@@ -11,5 +11,11 @@
       "src": "/(.*)",
       "dest": "dist/index.mjs"
     }
-  ]
+  ],
+  "functions": {
+    "dist/index.mjs": {
+      "memory": 1024,
+      "maxDuration": 60
+    }
+  }
 }
