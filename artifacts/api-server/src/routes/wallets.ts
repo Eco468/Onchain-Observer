@@ -159,6 +159,98 @@ router.patch("/wallets/:id", async (req, res) => {
   }
 });
 
+router.get("/wallets/:id/transactions", async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) return res.status(400).json({ error: "Invalid wallet id" });
+
+    const [wallet] = await db.select().from(walletsTable).where(eq(walletsTable.id, id));
+    if (!wallet) return res.status(404).json({ error: "Wallet not found" });
+
+    if (wallet.chain !== "ethereum") {
+      return res.json({ transactions: [], supported: false, chain: wallet.chain });
+    }
+
+    const { getNormalTxs, getTokenTxs, getEthPrice, getEthBalance } = await import("../lib/etherscan.js");
+
+    const [normalTxs, tokenTxs, ethPrice, ethBalance] = await Promise.all([
+      getNormalTxs(wallet.address, "0", 50),
+      getTokenTxs(wallet.address, "0", 50),
+      getEthPrice(),
+      getEthBalance(wallet.address),
+    ]);
+
+    // Normalise normal ETH txs
+    const ethTxs = normalTxs
+      .filter((tx) => tx.isError === "0" && tx.value !== "0")
+      .map((tx) => {
+        const ethVal = Number(tx.value) / 1e18;
+        const usd = ethVal * ethPrice;
+        const dir = tx.to.toLowerCase() === wallet.address.toLowerCase() ? "in" : "out";
+        return {
+          hash: tx.hash,
+          blockNumber: tx.blockNumber,
+          timestamp: parseInt(tx.timeStamp) * 1000,
+          from: tx.from,
+          to: tx.to,
+          direction: dir,
+          tokenSymbol: "ETH",
+          tokenName: "Ethereum",
+          amount: ethVal,
+          amountUsd: usd,
+          method: tx.functionName ? tx.functionName.split("(")[0] : "transfer",
+          type: "eth" as const,
+        };
+      });
+
+    // Normalise token txs
+    const tokTxs = tokenTxs.map((tx) => {
+      const decimals = parseInt(tx.tokenDecimal) || 18;
+      const amount = Number(tx.value) / Math.pow(10, decimals);
+      const stables = ["USDC", "USDT", "DAI", "BUSD", "FRAX"];
+      const usd = stables.includes(tx.tokenSymbol?.toUpperCase()) ? amount : 0;
+      const dir = tx.to.toLowerCase() === wallet.address.toLowerCase() ? "in" : "out";
+      return {
+        hash: tx.hash,
+        blockNumber: tx.blockNumber,
+        timestamp: parseInt(tx.timeStamp) * 1000,
+        from: tx.from,
+        to: tx.to,
+        direction: dir,
+        tokenSymbol: tx.tokenSymbol,
+        tokenName: tx.tokenName,
+        amount,
+        amountUsd: usd,
+        method: "transfer",
+        type: "token" as const,
+      };
+    });
+
+    // Merge, dedupe by hash+token, sort newest first
+    const seen = new Set<string>();
+    const all = [...ethTxs, ...tokTxs]
+      .filter((tx) => {
+        const key = `${tx.hash}-${tx.tokenSymbol}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .sort((a, b) => b.timestamp - a.timestamp)
+      .slice(0, 50);
+
+    res.json({
+      transactions: all,
+      supported: true,
+      chain: wallet.chain,
+      ethBalance: ethBalance ?? 0,
+      ethPrice,
+    });
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ error: "Failed to fetch transactions" });
+  }
+});
+
 router.delete("/wallets/:id", async (req, res) => {
   try {
     const { id } = DeleteWalletParams.parse({ id: parseInt(req.params.id) });

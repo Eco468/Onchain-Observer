@@ -58,7 +58,7 @@ async function get<T>(params: Record<string, string>): Promise<T | null> {
   }
 }
 
-export async function getNormalTxs(address: string, startBlock = "0"): Promise<EthTx[]> {
+export async function getNormalTxs(address: string, startBlock = "0", limit = 10): Promise<EthTx[]> {
   const result = await get<EthTx[]>({
     module: "account",
     action: "txlist",
@@ -66,23 +66,34 @@ export async function getNormalTxs(address: string, startBlock = "0"): Promise<E
     startblock: startBlock,
     endblock: "99999999",
     sort: "desc",
-    offset: "10",
+    offset: String(limit),
     page: "1",
   });
   return result ?? [];
 }
 
-export async function getTokenTxs(address: string, startBlock = "0"): Promise<TokenTx[]> {
+export async function getTokenTxs(address: string, startBlock = "0", limit = 20): Promise<TokenTx[]> {
   const result = await get<TokenTx[]>({
     module: "account",
     action: "tokentx",
     address,
     startblock: startBlock,
     sort: "desc",
-    offset: "20",
+    offset: String(limit),
     page: "1",
   });
   return result ?? [];
+}
+
+export async function getEthBalance(address: string): Promise<number | null> {
+  const result = await get<string>({
+    module: "account",
+    action: "balance",
+    address,
+    tag: "latest",
+  });
+  if (!result) return null;
+  return Number(result) / 1e18;
 }
 
 export async function getEthPrice(): Promise<number> {
