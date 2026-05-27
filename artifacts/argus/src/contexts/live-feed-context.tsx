@@ -1,5 +1,5 @@
-import { createContext, useContext, useState, useCallback, useRef } from "react";
-import { useLiveFeed, type LiveEventPayload, type WsStatus } from "@/hooks/use-live-feed";
+import { createContext, useContext, useState, useCallback } from "react";
+import { useLiveFeed, type LiveEventPayload, type CorrelationSignalPayload, type WsStatus } from "@/hooks/use-live-feed";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   getGetDashboardStatsQueryKey,
@@ -11,6 +11,7 @@ import {
 interface LiveFeedContextValue {
   status: WsStatus;
   recentEvents: LiveEventPayload[];
+  recentCorrelations: CorrelationSignalPayload[];
   eventCount: number;
   clearRecent: () => void;
 }
@@ -18,21 +19,22 @@ interface LiveFeedContextValue {
 const LiveFeedContext = createContext<LiveFeedContextValue>({
   status: "connecting",
   recentEvents: [],
+  recentCorrelations: [],
   eventCount: 0,
   clearRecent: () => {},
 });
 
 const MAX_RECENT = 50;
+const MAX_CORRELATIONS = 20;
 
 export function LiveFeedProvider({ children }: { children: React.ReactNode }) {
   const [recentEvents, setRecentEvents] = useState<LiveEventPayload[]>([]);
+  const [recentCorrelations, setRecentCorrelations] = useState<CorrelationSignalPayload[]>([]);
   const queryClient = useQueryClient();
 
   const handleEvent = useCallback(
     (event: LiveEventPayload) => {
       setRecentEvents((prev) => [event, ...prev].slice(0, MAX_RECENT));
-
-      // Invalidate queries that depend on live event data
       queryClient.invalidateQueries({ queryKey: getGetDashboardStatsQueryKey() });
       queryClient.invalidateQueries({ queryKey: getGetDashboardActivityQueryKey() });
       queryClient.invalidateQueries({ queryKey: getListEventsQueryKey() });
@@ -41,12 +43,24 @@ export function LiveFeedProvider({ children }: { children: React.ReactNode }) {
     [queryClient]
   );
 
-  const { status, eventCount } = useLiveFeed(handleEvent);
+  const handleCorrelation = useCallback(
+    (signal: CorrelationSignalPayload) => {
+      setRecentCorrelations((prev) => [signal, ...prev].slice(0, MAX_CORRELATIONS));
+      // Invalidate intelligence feed so it picks up the new item
+      queryClient.invalidateQueries({ queryKey: ["intelligence"] });
+    },
+    [queryClient]
+  );
 
-  const clearRecent = useCallback(() => setRecentEvents([]), []);
+  const { status, eventCount } = useLiveFeed(handleEvent, handleCorrelation);
+
+  const clearRecent = useCallback(() => {
+    setRecentEvents([]);
+    setRecentCorrelations([]);
+  }, []);
 
   return (
-    <LiveFeedContext.Provider value={{ status, recentEvents, eventCount, clearRecent }}>
+    <LiveFeedContext.Provider value={{ status, recentEvents, recentCorrelations, eventCount, clearRecent }}>
       {children}
     </LiveFeedContext.Provider>
   );
@@ -55,3 +69,5 @@ export function LiveFeedProvider({ children }: { children: React.ReactNode }) {
 export function useLiveFeedContext() {
   return useContext(LiveFeedContext);
 }
+
+export type { LiveEventPayload, CorrelationSignalPayload };

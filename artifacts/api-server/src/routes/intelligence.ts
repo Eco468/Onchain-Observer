@@ -1,7 +1,8 @@
 import { Router, type IRouter } from "express";
 import { db, intelligenceItemsTable, walletsTable, eventsTable } from "@workspace/db";
-import { eq, desc, count } from "drizzle-orm";
+import { eq, desc, count, and } from "drizzle-orm";
 import { GetIntelligenceFeedQueryParams, AnalyzeWalletBody } from "@workspace/api-zod";
+import { runCorrelationDetection } from "../lib/correlationDetector";
 
 const router: IRouter = Router();
 
@@ -131,6 +132,42 @@ router.get("/intelligence/summary", async (req, res) => {
   } catch (err) {
     req.log.error(err);
     res.status(500).json({ error: "Failed to get market summary" });
+  }
+});
+
+router.get("/intelligence/correlations", async (req, res) => {
+  try {
+    const limit = Math.min(Number(req.query["limit"] ?? 20), 50);
+    const items = await db
+      .select()
+      .from(intelligenceItemsTable)
+      .where(eq(intelligenceItemsTable.category, "correlation"))
+      .orderBy(desc(intelligenceItemsTable.createdAt))
+      .limit(limit);
+
+    res.json(
+      items.map((item) => ({
+        id: item.id,
+        headline: item.headline,
+        body: item.body,
+        significance: item.significance,
+        relatedWallets: item.relatedWallets ?? [],
+        createdAt: item.createdAt.toISOString(),
+      }))
+    );
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ error: "Failed to get correlations" });
+  }
+});
+
+router.post("/intelligence/correlations/run", async (req, res) => {
+  try {
+    await runCorrelationDetection();
+    res.json({ ok: true, message: "Correlation detection cycle completed" });
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ error: "Correlation detection failed" });
   }
 });
 

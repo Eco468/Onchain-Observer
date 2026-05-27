@@ -2,23 +2,38 @@ import { WebSocketServer, WebSocket } from "ws";
 import type { Server } from "http";
 import { logger } from "./logger";
 
-export interface LiveEvent {
-  type: "event" | "ping";
-  payload?: {
-    id: number;
-    walletId: number;
-    walletAddress: string;
-    walletLabel: string;
-    eventType: string;
-    chain: string;
-    tokenSymbol: string | null;
-    amountUsd: number | null;
-    txHash: string | null;
-    significance: string;
-    summary: string | null;
-    detectedAt: string;
-  };
+export interface WalletEventPayload {
+  id: number;
+  walletId: number;
+  walletAddress: string;
+  walletLabel: string;
+  eventType: string;
+  chain: string;
+  tokenSymbol: string | null;
+  amountUsd: number | null;
+  txHash: string | null;
+  significance: string;
+  summary: string | null;
+  detectedAt: string;
 }
+
+export interface CorrelationSignalPayload {
+  id: number;
+  headline: string;
+  body: string;
+  significance: string;
+  eventType: string;
+  chain: string;
+  walletCount: number;
+  walletLabels: string[];
+  totalUsd: number;
+  detectedAt: string;
+}
+
+export type LiveEvent =
+  | { type: "ping" }
+  | { type: "event"; payload: WalletEventPayload }
+  | { type: "correlation_signal"; payload: CorrelationSignalPayload };
 
 let wss: WebSocketServer | null = null;
 

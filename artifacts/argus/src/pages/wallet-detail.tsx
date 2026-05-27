@@ -47,13 +47,10 @@ export default function WalletDetail() {
   const id = parseInt(params.id || "0", 10);
   const [tab, setTab] = useState<Tab>("events");
 
-  const { data: wallet, isLoading: walletLoading } = useGetWallet(id, {
-    query: { enabled: !!id },
-  });
+  const { data: wallet, isLoading: walletLoading } = useGetWallet(id);
 
   const { data: events, isLoading: eventsLoading } = useListEvents(
-    { walletId: id, limit: 50 },
-    { query: { enabled: !!id } }
+    { walletId: id, limit: 50 }
   );
 
   const { data: txData, isLoading: txLoading } = useQuery<TxResponse>({
